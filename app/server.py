@@ -12,13 +12,13 @@ from starlette.responses import JSONResponse, Response
 
 from . import store, ui
 
-TOKEN = os.environ.get("READ_API_TOKEN", "").encode()
+TOKEN = os.environ.get("INBOX_API_TOKEN", "").encode()
 BASE_URL = ui.BASE_URL
 MAX_REQ = store.MAX_BYTES * 4 // 3 + 1024 * 1024  # base64 inflation + JSON envelope
 
 mcp = FastMCP(
-    "read-inbox",
-    instructions=("A reading inbox for the human user. Push finished documents (reports, research summaries, "
+    "artifact-inbox",
+    instructions=("A artifact inbox for the human user. Push finished documents (reports, research summaries, "
                   "PDFs) here so the user can read them later; never mark them done yourself."),
     stateless_http=True, json_response=True, streamable_http_path="/mcp",
     max_request_body_size=MAX_REQ,
@@ -46,7 +46,7 @@ def push_artifact(title: str, category: str = "general", content_base64: Optiona
                   content_text: Optional[str] = None, url: Optional[str] = None,
                   filename: Optional[str] = None, type: Optional[Literal["pdf", "markdown", "html", "text"]] = None,
                   summary: Optional[str] = None, source_agent: Optional[str] = None) -> dict:
-    """Save a finished document into the user's reading inbox (read.example.com) so they can read it later.
+    """Save a finished document into the user's artifact inbox (inbox.example.com) so they can read it later.
 
     Use this when you have produced a report, research summary, generated PDF or any artifact longer than
     a chat message. Do NOT use it for short answers, secrets/credentials, or raw logs. After a successful
@@ -121,7 +121,7 @@ def update_artifact(id: str, content_base64: Optional[str] = None, content_text:
 @mcp.tool()
 def list_items(status: Literal["unread", "done", "all"] = "unread", category: Optional[str] = None,
                limit: int = 50, offset: int = 0) -> dict:
-    """List items in the reading inbox, newest first.
+    """List items in the artifact inbox, newest first.
 
     Use this to check what is already in the inbox (e.g. to avoid pushing a duplicate) or to find an item id.
     status: unread (default) | done | all. category: exact category to filter by (optional).
@@ -218,8 +218,27 @@ async def api_update(request: Request) -> Response:
                          "category": it["category"]}, 200)
 
 
+def _ui_creds():
+    """Optional built-in login for the web UI (HTTP basic auth). Unset password = rely on your proxy."""
+    pw = os.environ.get("INBOX_UI_PASSWORD", "")
+    return (os.environ.get("INBOX_UI_USER", "admin").encode(), pw.encode()) if pw else None
+
+
+def _basic_ok(header: bytes, creds) -> bool:
+    if header[:6].lower() != b"basic ":
+        return False
+    try:
+        user, _, pw = base64.b64decode(header[6:].strip(), validate=True).partition(b":")
+    except ValueError:
+        return False
+    # Compare both fields unconditionally so timing doesn't reveal which one was wrong.
+    return hmac.compare_digest(user, creds[0]) & hmac.compare_digest(pw, creds[1])
+
+
 class Guard:
-    """Bearer auth for /mcp and /api, plus request-size cap. Everything else is behind SSO at Traefik."""
+    """Bearer auth for /mcp and /api, request-size cap, optional basic auth for the UI."""
+
+    PUBLIC = ("/healthz", "/install")  # token-free by design
 
     def __init__(self, app):
         self.app = app
@@ -233,9 +252,15 @@ class Guard:
                 ok = bool(TOKEN) and got[:7].lower() == b"bearer " and hmac.compare_digest(got[7:].strip(), TOKEN)
                 if not ok:
                     return await self._json(send, 401, {"error": "missing or invalid bearer token"},
-                                            [(b"www-authenticate", b'Bearer realm="read"')])
+                                            [(b"www-authenticate", b'Bearer realm="artifact-inbox"')])
                 if int(h.get(b"content-length", b"0") or 0) > MAX_REQ:
                     return await self._json(send, 413, {"error": "file too large (limit 50 MB)"})
+            elif not (path in self.PUBLIC or path.startswith("/install/")):
+                creds = _ui_creds()
+                got = {k: v for k, v in scope["headers"]}.get(b"authorization", b"")
+                if creds and not _basic_ok(got, creds):
+                    return await self._json(send, 401, {"error": "authentication required"},
+                                            [(b"www-authenticate", b'Basic realm="artifact-inbox", charset="UTF-8"')])
         await self.app(scope, receive, send)
 
     @staticmethod

@@ -13,9 +13,9 @@ from pathlib import Path
 
 import httpx
 
-DATA_DIR = Path(os.environ.get("READ_DATA_DIR", "/data"))
+DATA_DIR = Path(os.environ.get("INBOX_DATA_DIR", "/data"))
 FILES_DIR = DATA_DIR / "files"
-DB_PATH = DATA_DIR / "read.db"
+DB_PATH = DATA_DIR / "inbox.db"
 MAX_BYTES = 50 * 1024 * 1024
 TYPES = ("pdf", "markdown", "html", "text")
 EXT = {"pdf": "pdf", "markdown": "md", "html": "html", "text": "txt"}

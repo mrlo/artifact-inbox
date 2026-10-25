@@ -1,9 +1,9 @@
-# read: user guide
+# artifact-inbox: user guide
 
-`read` is a reading inbox. AI agents push documents (PDF, markdown, HTML, text) into it; you read them in the
+`artifact-inbox` is an artifact inbox. AI agents push documents (PDF, markdown, HTML, text) into it; you read them in the
 browser, sort them, and mark them done.
 
-## Using the web UI (your `READ_BASE_URL`)
+## Using the web UI (your `INBOX_BASE_URL`)
 
 - **Tabs**: Unread / Done / All, with counts.
 - **Sorting**: "Newest first" (default) or "By category" (grouped, with counts). Click a category chip to filter;
@@ -16,20 +16,20 @@ browser, sort them, and mark them done.
 
 ## Connecting an agent
 
-Give the agent this and nothing else: **"install this: https://read.example.com/install"**, plus the token (ask it to
+Give the agent this and nothing else: **"install this: https://inbox.example.com/install"**, plus the token (ask it to
 keep the token private). The page walks the agent through MCP setup, skill install and verification. The token is
-`READ_API_TOKEN` in your `.env`. (`https://read.example.com` in the docs is replaced with your `READ_BASE_URL` when served.)
+`INBOX_API_TOKEN` in your `.env`. (`https://inbox.example.com` in the docs is replaced with your `INBOX_BASE_URL` when served.)
 
 Public (no login) paths, none containing secrets: `/install` (this setup page, markdown) and `/install/SKILL.md`
-(the skill). `/mcp` and `/api/*` need the bearer token; everything else must be protected by your reverse proxy (see DEPLOYMENT.md).
+(the skill). `/mcp` and `/api/*` need the bearer token; everything else is protected by `INBOX_UI_PASSWORD` (basic auth) or by your reverse proxy (see DEPLOYMENT.md).
 
 ## Interfaces for agents
 
-- **MCP** `https://read.example.com/mcp` (streamable HTTP, bearer): `push_artifact`, `list_items`, `get_item`,
+- **MCP** `https://inbox.example.com/mcp` (streamable HTTP, bearer): `push_artifact`, `list_items`, `get_item`,
   `mark_done`, `list_categories`, `delete_item`. Tool descriptions are written for the model.
 - **REST** `POST /api/push` (multipart: `file`, `title`, `category`, `summary`, `source_agent`, `type`), same bearer:
   ```sh
-  curl -sS -X POST https://read.example.com/api/push -H "Authorization: Bearer $READ_API_TOKEN" \
+  curl -sS -X POST https://inbox.example.com/api/push -H "Authorization: Bearer $INBOX_API_TOKEN" \
     -F file=@report.pdf -F title="Report title" -F category=research -F source_agent=me -F summary="One line."
   ```
   Responses: `201 {id, link, type, size, category}`, `400` bad input, `401` token, `413` over 50 MB, `415` unsupported type.
@@ -48,10 +48,10 @@ Public (no login) paths, none containing secrets: `/install` (this setup page, m
 ```sh
 docker compose up -d            # start / apply changes to .env or compose.yml
 docker compose up -d --build    # rebuild after code, docs or skill changes
-docker compose logs -f read
+docker compose logs -f artifact-inbox
 ```
-- Data: `read.db` and `files/` in the data volume (`./data` by default). Back this directory up.
-- **Rotate the token**: `openssl rand -hex 32`, set `READ_API_TOKEN` in `.env` (mode 600), `docker compose up -d`,
+- Data: `inbox.db` and `files/` in the data volume (`./data` by default). Back this directory up.
+- **Rotate the token**: `openssl rand -hex 32`, set `INBOX_API_TOKEN` in `.env` (mode 600), `docker compose up -d`,
   then update every agent's config.
 - Edit the skill in `skill/SKILL.md` and rebuild; agents re-download it from `/install/SKILL.md`.
 - Edit this page's source in `docs/INSTALL.md`; rebuild to publish.
@@ -61,8 +61,8 @@ docker compose logs -f read
 
 | Symptom | Check |
 |---|---|
-| Browser shows a login loop | Your auth proxy, not `read`; test `/healthz` inside the container. |
+| Browser shows a login loop | Your auth proxy, not `artifact-inbox`; test `/healthz` inside the container. |
 | Agent gets `401` | Wrong token, or missing `Bearer ` prefix. |
 | Agent gets a redirect/HTML from `/mcp` | The proxy is sending `/mcp` and `/api` through your SSO; exempt them (see DEPLOYMENT.md). |
 | PDF pane empty | Browser has no PDF plugin; use Download. |
-| Container unhealthy | `docker compose logs read`; check the data directory is writable by uid 1000. |
+| Container unhealthy | `docker compose logs artifact-inbox`; check the data directory is writable by uid 1000. |

@@ -2,25 +2,25 @@
 # Adjust host, entrypoint, and the forward-auth middleware to your setup.
 #   docker compose -f compose.yml -f examples/compose.traefik.yml up -d
 services:
-  read:
+  artifact-inbox:
     ports: !reset []
     networks: [proxy]
     labels:
       traefik.enable: "true"
       traefik.docker.network: "proxy"
-      traefik.http.services.read.loadbalancer.server.port: "8000"
+      traefik.http.services.artifact-inbox.loadbalancer.server.port: "8000"
       # Web UI: behind your SSO / forward-auth middleware.
-      traefik.http.routers.read.rule: "Host(`read.example.com`)"
-      traefik.http.routers.read.entrypoints: "websecure"
-      traefik.http.routers.read.tls: "true"
-      traefik.http.routers.read.priority: "10"
-      traefik.http.routers.read.middlewares: "sso@file"   # your forward-auth middleware
+      traefik.http.routers.artifact-inbox.rule: "Host(`inbox.example.com`)"
+      traefik.http.routers.artifact-inbox.entrypoints: "websecure"
+      traefik.http.routers.artifact-inbox.tls: "true"
+      traefik.http.routers.artifact-inbox.priority: "10"
+      traefik.http.routers.artifact-inbox.middlewares: "sso@file"   # your forward-auth middleware
       # Agents: bypass SSO; the app enforces the bearer token. /install is token-free docs.
-      traefik.http.routers.read-agents.rule: "Host(`read.example.com`) && (PathPrefix(`/mcp`) || PathPrefix(`/api`) || PathPrefix(`/install`))"
-      traefik.http.routers.read-agents.entrypoints: "websecure"
-      traefik.http.routers.read-agents.tls: "true"
-      traefik.http.routers.read-agents.priority: "100"
-      traefik.http.routers.read-agents.service: "read"
+      traefik.http.routers.artifact-inbox-agents.rule: "Host(`inbox.example.com`) && (PathPrefix(`/mcp`) || PathPrefix(`/api`) || PathPrefix(`/install`))"
+      traefik.http.routers.artifact-inbox-agents.entrypoints: "websecure"
+      traefik.http.routers.artifact-inbox-agents.tls: "true"
+      traefik.http.routers.artifact-inbox-agents.priority: "100"
+      traefik.http.routers.artifact-inbox-agents.service: "artifact-inbox"
 networks:
   proxy:
     external: true

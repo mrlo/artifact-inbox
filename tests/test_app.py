@@ -6,8 +6,8 @@ import tempfile
 
 import pytest
 
-os.environ["READ_DATA_DIR"] = tempfile.mkdtemp()
-os.environ["READ_API_TOKEN"] = "t" * 64
+os.environ["INBOX_DATA_DIR"] = tempfile.mkdtemp()
+os.environ["INBOX_API_TOKEN"] = "t" * 64
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from starlette.testclient import TestClient  # noqa: E402
@@ -20,7 +20,7 @@ PDF = b"%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF"
 
 @pytest.fixture(scope="module")
 def client():
-    with TestClient(server.app, base_url="http://read.test") as c:
+    with TestClient(server.app, base_url="http://inbox.test") as c:
         yield c
 
 
@@ -102,7 +102,7 @@ def test_html_state_roundtrip(client):
     assert client.get(f"/state/{iid}").json() == {}
     bad = {"Origin": "https://evil.example"}
     assert client.put(f"/state/{iid}", headers=bad, content=b"{}").status_code == 403
-    ok = {"Origin": "http://read.test"}
+    ok = {"Origin": "http://inbox.test"}
     assert client.put(f"/state/{iid}", headers=ok, content=b"[1]").status_code == 400
     assert client.put(f"/state/{iid}", headers=ok, content=b'{"done:1":"1"}').status_code == 204
     assert client.get(f"/state/{iid}").json() == {"done:1": "1"}
@@ -163,9 +163,9 @@ def test_install_page_public(client, monkeypatch):
     monkeypatch.setattr(ui, "DOC_DIR", os.path.dirname(os.path.dirname(__file__)))
     r = client.get("/install")
     assert r.status_code == 200 and r.headers["content-type"].startswith("text/markdown")
-    assert "<READ_API_TOKEN>" in r.text and "t" * 64 not in r.text
-    assert client.get("/install/SKILL.md").text.startswith("---\nname: read-inbox")
-    assert "read.example.com" not in r.text and ui.BASE_URL in r.text
+    assert "<INBOX_API_TOKEN>" in r.text and "t" * 64 not in r.text
+    assert client.get("/install/SKILL.md").text.startswith("---\nname: artifact-inbox")
+    assert "inbox.example.com" not in r.text and ui.BASE_URL in r.text
 
 
 def test_update_in_place(client):
@@ -178,3 +178,23 @@ def test_update_in_place(client):
     assert not (store.FILES_DIR / f"{iid}.md").exists()
     assert client.put("/api/items/nope", headers=AUTH, files={"file": ("a.md", b"x")}).status_code == 404
     assert client.put(f"/api/items/{iid}", files={"file": ("a.md", b"x")}).status_code == 401
+
+
+def test_ui_basic_auth(client, monkeypatch):
+    # off by default: the UI is open (proxy mode)
+    assert client.get("/").status_code == 200
+    monkeypatch.setenv("INBOX_UI_PASSWORD", "s3cret")
+    r = client.get("/")
+    assert r.status_code == 401 and r.headers["www-authenticate"].startswith("Basic")
+    good = {"Authorization": "Basic " + base64.b64encode(b"admin:s3cret").decode()}
+    bad = {"Authorization": "Basic " + base64.b64encode(b"admin:nope").decode()}
+    assert client.get("/", headers=good).status_code == 200
+    assert client.get("/", headers=bad).status_code == 401
+    assert client.get("/", headers={"Authorization": "Basic !!!"}).status_code == 401
+    assert client.get("/raw/x").status_code == 401 and client.post("/bulk/done").status_code == 401
+    # agent + public paths are unaffected
+    assert client.get("/healthz").status_code == 200
+    assert client.post("/api/push").status_code == 401  # bearer error, not basic
+    assert "Bearer" in client.post("/api/push").headers["www-authenticate"]
+    monkeypatch.setenv("INBOX_UI_USER", "larry")
+    assert client.get("/", headers=good).status_code == 401

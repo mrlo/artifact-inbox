@@ -1,11 +1,11 @@
 ---
-name: read-inbox
-description: Use when you create a document, report, PDF or other artifact the user should read later. Pushes it to the read.example.com inbox.
+name: artifact-inbox
+description: Use when you create a document, report, PDF or other artifact the user should read later. Pushes it to the inbox.example.com inbox.
 ---
 
-# read-inbox
+# artifact-inbox
 
-`read.example.com` is the user's reading inbox. You push finished documents into it; the user reads, sorts and
+`inbox.example.com` is the user's artifact inbox. You push finished documents into it; the user reads, sorts and
 marks them done in a web UI. You talk to it through an MCP server (preferred) or a plain `curl` call.
 
 ## When to push
@@ -18,26 +18,26 @@ or command dumps, half-finished scratch work, or the same document twice (check 
 
 ## Connect
 
-- MCP URL: `https://read.example.com/mcp` (streamable HTTP)
-- Header: `Authorization: Bearer <READ_API_TOKEN>`
+- MCP URL: `https://inbox.example.com/mcp` (streamable HTTP)
+- Header: `Authorization: Bearer <INBOX_API_TOKEN>`
 
-The token is the server's `READ_API_TOKEN` (in the `.env` of the deployment). Ask the user for it
+The token is the server's `INBOX_API_TOKEN` (in the `.env` of the deployment). Ask the user for it
 if you do not have it; never paste it into chat, documents or logs.
 
 Claude Code:
 
 ```sh
-claude mcp add --transport http read https://read.example.com/mcp --header "Authorization: Bearer <READ_API_TOKEN>"
+claude mcp add --transport http artifact-inbox https://inbox.example.com/mcp --header "Authorization: Bearer <INBOX_API_TOKEN>"
 ```
 
-Hermes (`~/.hermes/config.yaml`, or `hermes mcp add read --url https://read.example.com/mcp --auth header`):
+Hermes (`~/.hermes/config.yaml`, or `hermes mcp add artifact-inbox --url https://inbox.example.com/mcp --auth header`):
 
 ```yaml
 mcp_servers:
-  read:
-    url: https://read.example.com/mcp
+  artifact-inbox:
+    url: https://inbox.example.com/mcp
     headers:
-      Authorization: "Bearer <READ_API_TOKEN>"
+      Authorization: "Bearer <INBOX_API_TOKEN>"
     enabled: true
 ```
 
@@ -46,10 +46,10 @@ Generic `mcpServers` JSON (Cursor, Claude Desktop via mcp-remote, etc.):
 ```json
 {
   "mcpServers": {
-    "read": {
+    "artifact-inbox": {
       "type": "http",
-      "url": "https://read.example.com/mcp",
-      "headers": { "Authorization": "Bearer <READ_API_TOKEN>" }
+      "url": "https://inbox.example.com/mcp",
+      "headers": { "Authorization": "Bearer <INBOX_API_TOKEN>" }
     }
   }
 }
@@ -58,8 +58,8 @@ Generic `mcpServers` JSON (Cursor, Claude Desktop via mcp-remote, etc.):
 ## curl fallback (no MCP)
 
 ```sh
-curl -sS -X POST https://read.example.com/api/push \
-  -H "Authorization: Bearer <READ_API_TOKEN>" \
+curl -sS -X POST https://inbox.example.com/api/push \
+  -H "Authorization: Bearer <INBOX_API_TOKEN>" \
   -F file=@report.pdf \
   -F title="Mortgage refinance options compared" \
   -F category=finance \
@@ -96,7 +96,7 @@ Markdown you wrote yourself:
 push_artifact(title="Vector DB options for the notes app", category="research",
               content_text="# Vector DBs\n\n...", summary="Compares pgvector, Qdrant and sqlite-vec for ~50k notes.",
               source_agent="hermes")
--> {"id":"3f9c...","link":"https://read.example.com/i/3f9c...","type":"markdown","size":2113,"category":"research"}
+-> {"id":"3f9c...","link":"https://inbox.example.com/i/3f9c...","type":"markdown","size":2113,"category":"research"}
 ```
 A PDF (base64 of the file bytes, no `data:` prefix, no line breaks needed):
 ```sh
@@ -106,7 +106,7 @@ base64 -w0 report.pdf    # shell: produce the string to pass as content_base64
 push_artifact(title="Q3 household budget review", category="finance", filename="budget-q3.pdf",
               content_base64="JVBERi0xLjQKJcfs...", summary="Quarterly spend by category with three savings proposals.",
               source_agent="claude-code")
--> {"id":"a01c...","link":"https://read.example.com/i/a01c...","type":"pdf","size":48211,"category":"finance"}
+-> {"id":"a01c...","link":"https://inbox.example.com/i/a01c...","type":"pdf","size":48211,"category":"finance"}
 ```
 A public URL (server downloads it; private/internal addresses are refused):
 ```
@@ -122,12 +122,12 @@ list_items(status="unread", category="finance", limit=10)  ->  {"items":[{"id":"
 
 **get_item(id)** - metadata and link for one item (not the body); e.g. check whether the user finished it.
 ```
-get_item(id="a01c...")  ->  {"id":"a01c...","title":"Q3 household budget review","done":false,"link":"https://read.example.com/i/a01c..."}
+get_item(id="a01c...")  ->  {"id":"a01c...","title":"Q3 household budget review","done":false,"link":"https://inbox.example.com/i/a01c..."}
 ```
 
 **update_artifact(id, content_base64? | content_text? | url?, filename?, type?, title?, category?, summary?)** - replace an item you already pushed when the document changed. Keeps the id, link, done state and saved checkbox state. Use it instead of pushing a duplicate. REST equivalent: `PUT /api/items/<id>` (multipart `file`, same bearer token).
 ```
-update_artifact(id="a01c...", content_text="# Revised report ...")  ->  {"id":"a01c...","link":"https://read.example.com/i/a01c...",...}
+update_artifact(id="a01c...", content_text="# Revised report ...")  ->  {"id":"a01c...","link":"https://inbox.example.com/i/a01c...",...}
 ```
 
 **mark_done(id, done=true)** - only when the user explicitly asks. `done=false` makes it unread again.

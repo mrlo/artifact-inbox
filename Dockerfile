@@ -1,5 +1,5 @@
 FROM python:3.13-alpine@sha256:2d9aefe2fef018a7eb2c13064c89c71929800fd2e5dccdbf52ea5da5bb8d929a
-ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 READ_DATA_DIR=/data
+ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 INBOX_DATA_DIR=/data
 WORKDIR /srv
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt

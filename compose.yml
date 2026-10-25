@@ -1,17 +1,17 @@
-name: read
+name: artifact-inbox
 
 services:
-  read:
+  artifact-inbox:
     build: .
-    image: read-inbox:local
-    container_name: read
+    image: artifact-inbox:local
+    container_name: artifact-inbox
     restart: unless-stopped
     user: "1000:1000"
     mem_limit: 256m
     env_file: .env
     ports:
-      # Localhost only. The web UI has NO login of its own: put an authenticating
-      # reverse proxy in front before exposing it (see docs/DEPLOYMENT.md).
+      # Localhost only. Set INBOX_UI_PASSWORD in .env for built-in login, or put an
+      # authenticating proxy in front before exposing it (see docs/DEPLOYMENT.md).
       - "127.0.0.1:8000:8000"
     volumes:
       - ./data:/data   # must be writable by uid 1000: mkdir -p data && chown 1000:1000 data

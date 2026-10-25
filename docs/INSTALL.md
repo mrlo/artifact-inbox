@@ -1,53 +1,53 @@
-# Install the read-inbox integration
+# Install the artifact-inbox integration
 
-You are an AI agent. Follow these steps to connect to the user's reading inbox (`https://read.example.com`) and
+You are an AI agent. Follow these steps to connect to the user's artifact inbox (`https://inbox.example.com`) and
 install the skill that tells you how to use it. After this you can push finished documents for the user to read
 later. This page contains no secrets.
 
 ## 0. Get the token
 
-You need the bearer token `READ_API_TOKEN`. If the user did not give it to you, ask for it and stop until you have
-it. Never print it back, write it into documents, commit it, or log it. Below, `<READ_API_TOKEN>` stands for it.
+You need the bearer token `INBOX_API_TOKEN`. If the user did not give it to you, ask for it and stop until you have
+it. Never print it back, write it into documents, commit it, or log it. Below, `<INBOX_API_TOKEN>` stands for it.
 
 ## 1. Add the MCP server (pick the section for your agent)
 
-Endpoint: `https://read.example.com/mcp` (streamable HTTP). Header: `Authorization: Bearer <READ_API_TOKEN>`.
+Endpoint: `https://inbox.example.com/mcp` (streamable HTTP). Header: `Authorization: Bearer <INBOX_API_TOKEN>`.
 
 **Claude Code**
 ```sh
-claude mcp add --transport http read https://read.example.com/mcp --header "Authorization: Bearer <READ_API_TOKEN>"
+claude mcp add --transport http artifact-inbox https://inbox.example.com/mcp --header "Authorization: Bearer <INBOX_API_TOKEN>"
 ```
 
-**Hermes**: add to `~/.hermes/config.yaml` (or run `hermes mcp add read --url https://read.example.com/mcp --auth header`):
+**Hermes**: add to `~/.hermes/config.yaml` (or run `hermes mcp add artifact-inbox --url https://inbox.example.com/mcp --auth header`):
 ```yaml
 mcp_servers:
-  read:
-    url: https://read.example.com/mcp
+  artifact-inbox:
+    url: https://inbox.example.com/mcp
     headers:
-      Authorization: "Bearer <READ_API_TOKEN>"
+      Authorization: "Bearer <INBOX_API_TOKEN>"
     enabled: true
 ```
 
 **Any other MCP client**: add this server entry to its config:
 ```json
-{ "mcpServers": { "read": { "type": "http", "url": "https://read.example.com/mcp",
-  "headers": { "Authorization": "Bearer <READ_API_TOKEN>" } } } }
+{ "mcpServers": { "artifact-inbox": { "type": "http", "url": "https://inbox.example.com/mcp",
+  "headers": { "Authorization": "Bearer <INBOX_API_TOKEN>" } } } }
 ```
 
 **No MCP support**: skip this step; use the curl fallback described in the skill (`POST /api/push`).
 
 ## 2. Install the skill
 
-Download `https://read.example.com/install/SKILL.md` into your skills directory under the name `read-inbox`:
+Download `https://inbox.example.com/install/SKILL.md` into your skills directory under the name `artifact-inbox`:
 
 | Agent | Destination |
 |---|---|
-| Claude Code | `~/.claude/skills/read-inbox/SKILL.md` |
-| Hermes | `~/.hermes/skills/read-inbox/SKILL.md` |
+| Claude Code | `~/.claude/skills/artifact-inbox/SKILL.md` |
+| Hermes | `~/.hermes/skills/artifact-inbox/SKILL.md` |
 | Other | wherever your agent loads skills/instructions from; otherwise save it and read it before pushing |
 
 ```sh
-mkdir -p ~/.claude/skills/read-inbox && curl -fsSL https://read.example.com/install/SKILL.md -o ~/.claude/skills/read-inbox/SKILL.md
+mkdir -p ~/.claude/skills/artifact-inbox && curl -fsSL https://inbox.example.com/install/SKILL.md -o ~/.claude/skills/artifact-inbox/SKILL.md
 ```
 (Change the directory for Hermes.) Then read the file once; it contains the rules for when and how to push.
 
@@ -56,7 +56,7 @@ mkdir -p ~/.claude/skills/read-inbox && curl -fsSL https://read.example.com/inst
 Check that the token works without creating anything. Expected result: HTTP `400` (token accepted, no file sent).
 `401` means the token is wrong.
 ```sh
-curl -sS -o /dev/null -w '%{http_code}\n' -X POST https://read.example.com/api/push -H "Authorization: Bearer <READ_API_TOKEN>"
+curl -sS -o /dev/null -w '%{http_code}\n' -X POST https://inbox.example.com/api/push -H "Authorization: Bearer <INBOX_API_TOKEN>"
 ```
 If the MCP server is connected (you may need to restart the session or reload MCP servers), call `list_categories`.
 It should return a `categories` list (possibly empty). Do not push test documents; if you do, delete them with

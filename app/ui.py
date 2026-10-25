@@ -14,7 +14,7 @@ from starlette.routing import Route
 
 from . import store
 
-BASE_URL = os.environ.get("READ_BASE_URL", "http://localhost:8000").rstrip("/")
+BASE_URL = os.environ.get("INBOX_BASE_URL", "http://localhost:8000").rstrip("/")
 _md = MarkdownIt("commonmark", {"html": False, "linkify": False}).enable("table").enable("strikethrough")
 _TAGS = {"p", "br", "hr", "h1", "h2", "h3", "h4", "h5", "h6", "ul", "ol", "li", "blockquote", "pre", "code",
          "em", "strong", "del", "a", "img", "table", "thead", "tbody", "tr", "th", "td", "sup", "sub"}
@@ -112,7 +112,7 @@ def sidebar(tab: str = "", cat: str = "", sort: str = "") -> str:
         f"<a class='nav{' on' if c['category'] == cat else ''}' href='/{qs(tab=view, sort=s_arg, cat=c['category'])}'>"
         f"{e(c['category'])}<span>{c['count']}</span></a>" for c in store.categories(view))
     cats = cats or "<div class=meta style='padding:0 10px'>No categories yet</div>"
-    return (f"<aside class=side><a class=brand href=/>read</a><h3>Inbox</h3>{status}"
+    return (f"<aside class=side><a class=brand href=/>artifact-inbox</a><h3>Inbox</h3>{status}"
             f"<h3>Categories</h3>{cats}</aside>")
 
 
@@ -174,7 +174,7 @@ def index(request: Request) -> Response:
     else:
         body_items = "".join(card(it, here) for it in items)
     heading = f"{e(cat) if cat else {'unread': 'Unread', 'done': 'Done', 'all': 'All items'}[tab]}"
-    return page("read", f"<h1>{heading} <span class=meta>({len(items)})</span></h1>"
+    return page("artifact-inbox", f"<h1>{heading} <span class=meta>({len(items)})</span></h1>"
                         f"<nav class=tabs>{sorts}</nav><div class=bar>{bulk}</div>{body_items}",
                 side=sidebar(tab, cat, sort))
 
@@ -295,7 +295,7 @@ async def bulk(request: Request) -> Response:
     return RedirectResponse(safe_next(form.get("next")), 303)
 
 
-DOC_DIR = os.environ.get("READ_DOC_DIR", "/srv")
+DOC_DIR = os.environ.get("INBOX_DOC_DIR", "/srv")
 
 
 def _public_text(rel: str):
@@ -304,7 +304,7 @@ def _public_text(rel: str):
             body = open(os.path.join(DOC_DIR, rel), encoding="utf-8").read()
         except OSError:
             return Response("not found", 404)
-        body = body.replace("https://read.example.com", BASE_URL)
+        body = body.replace("https://inbox.example.com", BASE_URL)
         return Response(body, media_type="text/markdown; charset=utf-8", headers={
             "X-Content-Type-Options": "nosniff", "Cache-Control": "no-cache"})
     return handler
