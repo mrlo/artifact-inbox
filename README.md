@@ -38,8 +38,10 @@ to just answer in chat.
 ```sh
 cp .env.example .env            # set INBOX_API_TOKEN (openssl rand -hex 32), INBOX_BASE_URL, INBOX_UI_PASSWORD
 mkdir -p data && sudo chown 1000:1000 data
-docker compose up -d --build    # UI on http://127.0.0.1:8000
+docker compose up -d            # pulls ghcr.io/mrlo/artifact-inbox (amd64/arm64); UI on http://127.0.0.1:8000
 ```
+
+To build from source instead: `docker compose up -d --build`. Pin a release with `image: ghcr.io/mrlo/artifact-inbox:0.1.0`.
 
 Push something:
 

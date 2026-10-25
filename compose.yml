@@ -3,7 +3,7 @@ name: artifact-inbox
 services:
   artifact-inbox:
     build: .
-    image: artifact-inbox:local
+    image: ghcr.io/mrlo/artifact-inbox:latest
     container_name: artifact-inbox
     restart: unless-stopped
     user: "1000:1000"
