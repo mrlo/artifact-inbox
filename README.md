@@ -24,14 +24,17 @@ to just answer in chat.
 
 - **Agent-friendly**: MCP (streamable HTTP) at `/mcp`, REST at `/api/push`, and `/install`, a page an agent can
   follow to configure itself (plus a ready-made skill, `/install/SKILL.md`).
+- **Per-agent tokens with one-click setup**: in the UI, *Agents → Add agent* gives you a **single-use install link**.
+  Hand it to the agent ("install this: https://your-host/install?claim=..."); it swaps the link for its own token,
+  and the inbox then labels everything it pushes with that name. Revoke one agent later without touching the others.
 - **Reads well**: PDFs in the browser's viewer, sanitised markdown, sandboxed interactive HTML (a pushed checklist
   keeps its ticks), plain text. Dark mode and phone layout.
 - **Triage**: unread/done, categories with counts, "mark all done" per category, source agent and summary on every item.
 - **Small**: Python, SQLite, one container, ~256 MB.
 
-| Markdown | PDF | Interactive HTML | Phone |
-|---|---|---|---|
-| ![](docs/screenshots/reader-markdown.png) | ![](docs/screenshots/reader-pdf.png) | ![](docs/screenshots/reader-html-checklist.png) | <img src="docs/screenshots/inbox-mobile.png" width="200"> |
+| Markdown | PDF | Interactive HTML | Phone | Agents |
+|---|---|---|---|---|
+| ![](docs/screenshots/reader-markdown.png) | ![](docs/screenshots/reader-pdf.png) | ![](docs/screenshots/reader-html-checklist.png) | <img src="docs/screenshots/inbox-mobile.png" width="200"> | ![](docs/screenshots/agents.png) |
 
 ## Quick start
 
@@ -41,7 +44,7 @@ mkdir -p data && sudo chown 1000:1000 data
 docker compose up -d            # pulls ghcr.io/mrlo/artifact-inbox (amd64/arm64); UI on http://127.0.0.1:8000
 ```
 
-To build from source instead: `docker compose up -d --build`. Pin a release with `image: ghcr.io/mrlo/artifact-inbox:0.1.0`.
+To build from source instead: `docker compose up -d --build`. Pin a release with `image: ghcr.io/mrlo/artifact-inbox:0.2.0`.
 
 Push something:
 
@@ -61,7 +64,10 @@ claude mcp add --transport http artifact-inbox http://127.0.0.1:8000/mcp --heade
 
 Two layers, both optional to combine:
 
-- `/mcp` and `/api/*` always require the bearer token (`INBOX_API_TOKEN`).
+- `/mcp` and `/api/*` always require a bearer token: either the admin token (`INBOX_API_TOKEN`) or a per-agent token.
+- Per-agent tokens come from **single-use claim links** (`/install?claim=...`, valid 60 minutes by default). Opening the
+  link doesn't use it up (so chat link previews can't burn it); the agent redeems it once with `POST /api/claim`.
+  Only SHA-256 hashes of tokens and claims are stored, and the server stamps each item with the agent's registered name.
 - The web UI is protected by **built-in HTTP basic auth when `INBOX_UI_PASSWORD` is set** (user `INBOX_UI_USER`,
   default `admin`). If you leave it empty, the UI is open and you must put it behind your own auth (SSO proxy,
   VPN/Tailscale). The default compose file binds to `127.0.0.1` for that reason.
@@ -80,7 +86,7 @@ What the app does enforce:
 - `push_artifact(url=...)` fetches only public addresses (non-global IPs refused, redirects re-checked, size capped).
 - UI POSTs reject cross-origin `Origin` headers.
 
-Known limitations: single shared token (no per-agent tokens or users), DNS-rebinding race on URL fetch
+Known limitations: one human user (no multi-user, no per-agent permissions beyond on/off), DNS-rebinding race on URL fetch
 (resolve-then-connect), UI lists only the newest 500 items, no rate limiting on failed token or password attempts.
 
 ## Configuration
@@ -90,6 +96,7 @@ Known limitations: single shared token (no per-agent tokens or users), DNS-rebin
 | `INBOX_API_TOKEN` | Bearer token for `/mcp` and `/api/*` (required) |
 | `INBOX_UI_PASSWORD` | Enables basic auth on the web UI (empty = no UI auth; rely on your proxy) |
 | `INBOX_UI_USER` | Basic-auth user (default `admin`) |
+| `INBOX_CLAIM_TTL_MIN` | Minutes an install link stays valid (default 60) |
 | `INBOX_BASE_URL` | Public URL, used in returned links and the `/install` page (default `http://localhost:8000`) |
 | `INBOX_DATA_DIR` | Data directory inside the container (default `/data`) |
 

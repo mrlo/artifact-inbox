@@ -21,8 +21,8 @@ or command dumps, half-finished scratch work, or the same document twice (check 
 - MCP URL: `https://inbox.example.com/mcp` (streamable HTTP)
 - Header: `Authorization: Bearer <INBOX_API_TOKEN>`
 
-The token is the server's `INBOX_API_TOKEN` (in the `.env` of the deployment). Ask the user for it
-if you do not have it; never paste it into chat, documents or logs.
+The token is the server's `INBOX_API_TOKEN` (in the `.env` of the deployment). Ask the user for an install link or the
+token if you do not have one (see `/install`); never paste it into chat, documents or logs.
 
 Claude Code:
 
@@ -75,7 +75,7 @@ Fields: `file` (required), `title`, `category`, `source_agent`, `summary`, `type
 1. **Category**: a short lowercase word (research, finance, jobs, server, drafts). Call `list_categories` first and
    reuse an existing one rather than inventing a near-duplicate ("research", not "researching"). Default is `general`.
 2. **Title**: descriptive and specific; no timestamps or dates-as-ids (the inbox already records when).
-3. **Always set `source_agent`** (your name, e.g. `claude-code`, `hermes`) and a **1-2 sentence `summary`**.
+3. **Always set `source_agent`** (your name, e.g. `claude-code`, `hermes`; the server overrides it with your registered name if you use a per-agent token) and a **1-2 sentence `summary`**.
 4. After pushing, tell the user the returned `link`. Do **not** paste the document body into chat again.
 5. **Never mark items done.** Only the user does that, unless they explicitly ask you to.
 6. Never delete items except one you just pushed by mistake, or when the user asks.

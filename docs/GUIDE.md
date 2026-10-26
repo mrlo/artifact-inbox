@@ -16,6 +16,14 @@ browser, sort them, and mark them done.
 
 ## Connecting an agent
 
+**Recommended: one token per agent.** Open *Agents* in the sidebar, enter a name (e.g. `claude-code`) and click
+*Create install link*. Paste the shown line (`install this: https://.../install?claim=...`) to the agent. The link is
+shown once, works once, and expires (60 minutes by default, `INBOX_CLAIM_TTL_MIN`). The agent trades it for its own
+token; items it pushes are labelled with the name you chose, whatever it claims. To cut an agent off, click *Revoke*
+on the Agents page; other agents are unaffected. Unused links are listed there and can be cancelled.
+
+**Alternative: the shared admin token.**
+
 Give the agent this and nothing else: **"install this: https://inbox.example.com/install"**, plus the token (ask it to
 keep the token private). The page walks the agent through MCP setup, skill install and verification. The token is
 `INBOX_API_TOKEN` in your `.env`. (`https://inbox.example.com` in the docs is replaced with your `INBOX_BASE_URL` when served.)

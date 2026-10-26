@@ -1,6 +1,7 @@
 """SQLite metadata + file storage + ingest/validation. No web code here."""
 import base64
 import binascii
+import contextvars
 import ipaddress
 import os
 import socket
@@ -39,9 +40,28 @@ CREATE TABLE IF NOT EXISTS item_state (
   id TEXT PRIMARY KEY,
   data TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS agents (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  token_hash TEXT NOT NULL UNIQUE,
+  created_at TEXT NOT NULL,
+  last_used_at TEXT,
+  revoked_at TEXT
+);
+CREATE TABLE IF NOT EXISTS claims (
+  id TEXT PRIMARY KEY,
+  code_hash TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  used_at TEXT
+);
 CREATE INDEX IF NOT EXISTS items_done_created ON items(done, created_at DESC);
 """
 _lock = threading.Lock()
+# Name of the per-agent token that authenticated the current request (None for the admin token).
+# When set it overrides any client-supplied source_agent.
+CURRENT_AGENT: contextvars.ContextVar = contextvars.ContextVar("current_agent", default=None)
 
 
 class PushError(Exception):
@@ -158,7 +178,7 @@ def add_item(*, title, category=None, data: bytes, filename=None, declared_type=
     path = FILES_DIR / f"{item_id}.{EXT[typ]}"  # random name; user-supplied names never touch disk
     path.write_bytes(data)
     row = (item_id, title, norm_category(category),
-           " ".join(str(source_agent or "").split())[:80] or "unknown",
+           " ".join(str(CURRENT_AGENT.get() or source_agent or "").split())[:80] or "unknown",
            (str(summary).strip()[:1000] or None) if summary else None,
            typ, path.name, len(data), now())
     with _lock, db() as c:

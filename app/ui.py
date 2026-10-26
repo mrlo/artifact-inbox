@@ -113,7 +113,7 @@ def sidebar(tab: str = "", cat: str = "", sort: str = "") -> str:
         f"{e(c['category'])}<span>{c['count']}</span></a>" for c in store.categories(view))
     cats = cats or "<div class=meta style='padding:0 10px'>No categories yet</div>"
     return (f"<aside class=side><a class=brand href=/>artifact-inbox</a><h3>Inbox</h3>{status}"
-            f"<h3>Categories</h3>{cats}</aside>")
+            f"<h3>Categories</h3>{cats}<h3>Admin</h3><a class=nav href=/agents>Agents</a></aside>")
 
 
 def render_markdown(text: str) -> str:
@@ -305,6 +305,9 @@ def _public_text(rel: str):
         except OSError:
             return Response("not found", 404)
         body = body.replace("https://inbox.example.com", BASE_URL)
+        claim = request.query_params.get("claim", "")
+        if re.fullmatch(r"[A-Za-z0-9_-]{20,128}", claim):  # GET never consumes the claim; POST /api/claim does
+            body = body.replace("<CLAIM_CODE>", claim)
         return Response(body, media_type="text/markdown; charset=utf-8", headers={
             "X-Content-Type-Options": "nosniff", "Cache-Control": "no-cache"})
     return handler

@@ -10,7 +10,7 @@ from mcp.server.transport_security import TransportSecuritySettings
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
-from . import store, ui
+from . import agents, agents_ui, store, ui
 
 TOKEN = os.environ.get("INBOX_API_TOKEN", "").encode()
 BASE_URL = ui.BASE_URL
@@ -202,6 +202,17 @@ async def api_push(request: Request) -> Response:
                          "category": it["category"]}, 201)
 
 
+async def api_claim(request: Request) -> Response:
+    """Public: exchange a single-use claim code (from an install link) for a per-agent token."""
+    form = await request.form()
+    got = agents.redeem_claim(str(form.get("claim") or ""))
+    if not got:
+        return JSONResponse({"error": "claim is invalid, already used or expired; ask the user for a new install link"},
+                            410, {"Cache-Control": "no-store"})
+    return JSONResponse({"name": got["name"], "token": got["token"], "mcp_url": f"{BASE_URL}/mcp"},
+                        200, {"Cache-Control": "no-store"})
+
+
 async def api_update(request: Request) -> Response:
     form = await request.form(max_part_size=store.MAX_BYTES + 1024 * 1024)
     f = form.get("file")
@@ -246,18 +257,28 @@ class Guard:
     async def __call__(self, scope, receive, send):
         if scope["type"] == "http":
             path = scope["path"]
-            if path == "/mcp" or path.startswith(("/mcp/", "/api/")) or path == "/api":
-                h = {k: v for k, v in scope["headers"]}
+            h = {k: v for k, v in scope["headers"]}
+            if path == "/api/claim":  # public by design: protected by the single-use secret in the body
+                if int(h.get(b"content-length", b"0") or 0) > 4096:
+                    return await self._json(send, 413, {"error": "too large"})
+            elif path == "/mcp" or path.startswith(("/mcp/", "/api/")) or path == "/api":
                 got = h.get(b"authorization", b"")
-                ok = bool(TOKEN) and got[:7].lower() == b"bearer " and hmac.compare_digest(got[7:].strip(), TOKEN)
-                if not ok:
+                supplied = got[7:].strip() if got[:7].lower() == b"bearer " else b""
+                admin = bool(TOKEN) and hmac.compare_digest(supplied, TOKEN)
+                who = None if admin else agents.verify_token(supplied.decode("latin-1")) if supplied else None
+                if not (admin or who):
                     return await self._json(send, 401, {"error": "missing or invalid bearer token"},
                                             [(b"www-authenticate", b'Bearer realm="artifact-inbox"')])
                 if int(h.get(b"content-length", b"0") or 0) > MAX_REQ:
                     return await self._json(send, 413, {"error": "file too large (limit 50 MB)"})
+                tok = store.CURRENT_AGENT.set(who)
+                try:
+                    return await self.app(scope, receive, send)
+                finally:
+                    store.CURRENT_AGENT.reset(tok)
             elif not (path in self.PUBLIC or path.startswith("/install/")):
                 creds = _ui_creds()
-                got = {k: v for k, v in scope["headers"]}.get(b"authorization", b"")
+                got = h.get(b"authorization", b"")
                 if creds and not _basic_ok(got, creds):
                     return await self._json(send, 401, {"error": "authentication required"},
                                             [(b"www-authenticate", b'Basic realm="artifact-inbox", charset="UTF-8"')])
@@ -277,6 +298,8 @@ def build():
     app = mcp.streamable_http_app()  # Starlette app, owns the MCP session-manager lifespan
     app.router.routes.extend(ui.routes)
     from starlette.routing import Route
+    app.router.routes.extend(agents_ui.routes)
+    app.router.routes.append(Route("/api/claim", api_claim, methods=["POST"]))
     app.router.routes.append(Route("/api/push", api_push, methods=["POST"]))
     app.router.routes.append(Route("/api/items/{id}", api_update, methods=["PUT"]))
     return Guard(app)

@@ -198,3 +198,101 @@ def test_ui_basic_auth(client, monkeypatch):
     assert "Bearer" in client.post("/api/push").headers["www-authenticate"]
     monkeypatch.setenv("INBOX_UI_USER", "larry")
     assert client.get("/", headers=good).status_code == 401
+
+
+# ---- per-agent tokens / claim links ------------------------------------------------------------
+
+from app import agents  # noqa: E402
+
+
+def _claim(name="claude-code"):
+    return agents.create_claim(name)[1]
+
+
+def _redeem(client, code):
+    return client.post("/api/claim", data={"claim": code})
+
+
+def _docs(monkeypatch):
+    from app import ui
+    monkeypatch.setattr(ui, "DOC_DIR", os.path.dirname(os.path.dirname(__file__)))
+
+
+def test_claim_is_single_use_and_does_not_burn_on_get(client, monkeypatch):
+    _docs(monkeypatch)
+    code = _claim("agent-one")
+    page = client.get(f"/install?claim={code}")  # a link previewer / prefetch must not consume it
+    assert page.status_code == 200 and code in page.text and "<CLAIM_CODE>" not in page.text
+    r = _redeem(client, code)
+    assert r.status_code == 200 and r.json()["name"] == "agent-one" and r.json()["token"].startswith("ain_")
+    assert r.headers["cache-control"] == "no-store"
+    assert _redeem(client, code).status_code == 410  # second use refused
+
+
+def test_claim_unknown_expired_and_malformed(client, monkeypatch):
+    _docs(monkeypatch)
+    assert _redeem(client, "x" * 43).status_code == 410
+    assert _redeem(client, "").status_code == 410
+    code = _claim("old-one")
+    with store.db() as c:
+        c.execute("UPDATE claims SET expires_at='2000-01-01T00:00:00Z'")
+    assert _redeem(client, code).status_code == 410
+    bad = client.get("/install?claim=<script>alert(1)</script>")
+    assert "<script>alert" not in bad.text and "<CLAIM_CODE>" in bad.text  # only [A-Za-z0-9_-] is substituted
+
+
+def test_agent_token_works_and_forces_source_agent(client):
+    token = _redeem(client, _claim("alice-bot")).json()["token"]
+    h = {"Authorization": f"Bearer {token}"}
+    r = client.post("/api/push", headers=h, data={"title": "T", "source_agent": "spoofed"},
+                    files={"file": ("a.md", b"# hi")})
+    assert r.status_code == 201
+    assert store.get_item(r.json()["id"])["source_agent"] == "alice-bot"
+    # MCP path too
+    out = client.post("/mcp", headers={**h, "Accept": "application/json, text/event-stream"}, json={
+        "jsonrpc": "2.0", "id": 9, "method": "tools/call",
+        "params": {"name": "push_artifact", "arguments": {"title": "M", "content_text": "# x", "source_agent": "spoofed"}}})
+    iid = json.loads(out.json()["result"]["content"][0]["text"])["id"]
+    assert store.get_item(iid)["source_agent"] == "alice-bot"
+    # admin token still works and keeps the caller-supplied name
+    r = client.post("/api/push", headers=AUTH, data={"title": "A", "source_agent": "legacy"}, files={"file": ("a.md", b"x")})
+    assert store.get_item(r.json()["id"])["source_agent"] == "legacy"
+
+
+def test_revoke_cuts_off_only_that_agent(client):
+    t1 = _redeem(client, _claim("keep-me")).json()["token"]
+    t2 = _redeem(client, _claim("drop-me")).json()["token"]
+    ids = {a["name"]: a["id"] for a in agents.list_agents() if not a["revoked_at"]}
+    assert agents.revoke(ids["drop-me"])
+    push = lambda t: client.post("/api/push", headers={"Authorization": f"Bearer {t}"}, data={"title": "t"},
+                                 files={"file": ("a.md", b"x")}).status_code
+    assert push(t1) == 201 and push(t2) == 401
+    assert client.post("/api/push", headers={"Authorization": "Bearer ain_nope"}).status_code == 401
+
+
+def test_tokens_stored_hashed_and_duplicate_names(client):
+    token = _redeem(client, _claim("hash-check")).json()["token"]
+    with store.db() as c:
+        dump = json.dumps([tuple(r) for r in c.execute("SELECT * FROM agents")]) + \
+               json.dumps([tuple(r) for r in c.execute("SELECT * FROM claims")])
+    assert token not in dump
+    with pytest.raises(store.PushError) as ei:
+        agents.create_claim("hash-check")
+    assert ei.value.status == 409
+    for bad in ("", "  ", "<b>x</b>", "a" * 41):
+        with pytest.raises(store.PushError):
+            agents.create_claim(bad)
+
+
+def test_agents_ui(client, monkeypatch):
+    origin = {"Origin": "http://inbox.test"}
+    r = client.post("/agents/new", data={"name": "ui-made"}, headers=origin)
+    assert r.status_code == 200 and "/install?claim=" in r.text and r.headers["cache-control"] == "no-store"
+    assert client.post("/agents/new", data={"name": "ui-made2"}, headers={"Origin": "http://evil.test"}).status_code == 403
+    page = client.get("/agents")
+    assert "ui-made" in page.text and "claim=" not in page.text  # the code is never shown again
+    # with UI basic auth on, the agents page is protected but /api/claim stays reachable
+    monkeypatch.setenv("INBOX_UI_PASSWORD", "pw")
+    assert client.get("/agents").status_code == 401
+    assert client.post("/agents/new", data={"name": "x"}).status_code == 401
+    assert _redeem(client, "z" * 43).status_code == 410

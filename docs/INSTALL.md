@@ -6,8 +6,23 @@ later. This page contains no secrets.
 
 ## 0. Get the token
 
-You need the bearer token `INBOX_API_TOKEN`. If the user did not give it to you, ask for it and stop until you have
-it. Never print it back, write it into documents, commit it, or log it. Below, `<INBOX_API_TOKEN>` stands for it.
+You need a bearer token. Below, `<INBOX_API_TOKEN>` stands for it. Never print it back, write it into documents,
+commit it, or log it.
+
+**If the user gave you an install link containing `?claim=...`** (the normal case), exchange the claim for your own
+token. This works **once**: the claim is burned on first use and expires after an hour.
+
+```sh
+curl -sS -X POST https://inbox.example.com/api/claim -d "claim=<CLAIM_CODE>"
+```
+
+The response is JSON: `{"name": "...", "token": "ain_...", "mcp_url": "..."}`. Store the `token` somewhere private
+right away (your MCP configuration in step 1 is enough) and use it as `<INBOX_API_TOKEN>`. `name` is the identity
+the inbox will show for your documents. If the call returns `410`, the link was already used or expired: ask the
+user for a new one. Do not retry in a loop.
+
+**If the user gave you the token directly**, use that. If you have neither, ask the user for an install link
+and stop until you have one.
 
 ## 1. Add the MCP server (pick the section for your agent)
 

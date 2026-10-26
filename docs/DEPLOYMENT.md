@@ -4,8 +4,9 @@
 
 | Path | Protection |
 |---|---|
-| `/mcp`, `/api/*` | Bearer token (`INBOX_API_TOKEN`), enforced by the app. Fails closed if unset. |
-| `/install`, `/install/SKILL.md` | Public by design. Token-free setup docs for agents. |
+| `/mcp`, `/api/*` | Bearer token: admin `INBOX_API_TOKEN` or a per-agent token, enforced by the app. Fails closed. |
+| `/api/claim` | Public, protected by the single-use claim code in the request. Must be reachable by agents. |
+| `/install`, `/install/SKILL.md` | Public by design. Setup docs for agents; `?claim=` only echoes the code you already hold. |
 | `/healthz` | Public (health check). |
 | everything else (web UI) | HTTP basic auth if `INBOX_UI_PASSWORD` is set (user `INBOX_UI_USER`, default `admin`); otherwise **open**. |
 
@@ -46,3 +47,6 @@ inbox.example.com {
 Set `INBOX_BASE_URL` to the public URL so returned links and the `/install` page are correct.
 Agents outside your private network need `/mcp` to be reachable (e.g. via a tunnel or public hostname);
 that path is protected only by the single shared token, so use a long random one and rotate it if leaked.
+
+Install links contain the claim code in the URL, so a proxy access log may record it. It is single-use and short-lived,
+so a leaked, already-used link is harmless; keep `INBOX_CLAIM_TTL_MIN` low if you log full URLs.
